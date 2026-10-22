@@ -10,6 +10,13 @@
  * @doc https://umijs.org/docs/guides/proxy
  */
 export default {
+  dev: {
+    // localhost:8000/api/** -> 后端 NestJS (127.0.0.1:7001)
+    '/api/': {
+      target: 'http://127.0.0.1:7001',
+      changeOrigin: true,
+    },
+  },
   // 如果需要自定义本地开发服务器  请取消注释按需调整
   // dev: {
   //   // localhost:8000/api/** -> https://preview.pro.ant.design/api/**
