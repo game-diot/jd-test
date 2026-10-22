@@ -1,0 +1,429 @@
+// 企业级合同用印与审批平台 · 数据库 Schema
+// 依据：PRD §10.2 / §10.3（分表、审计字段、DECIMAL、索引、约束）
+// 约定：UUID 主键 · 金额 NUMERIC(18,2) · 时间 UTC (Timestamptz) · 字段 snake_case
+// 数据库：PostgreSQL（本地 Homebrew 17.11）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// 枚举
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ContractStatus {
+  DRAFT // 草稿
+  PENDING_APPROVAL // 待审批
+  APPROVED // 已通过
+  REJECTED // 已驳回
+  WITHDRAWN // 已撤回
+  TERMINATED // 已终止
+}
+
+enum Urgency {
+  NORMAL // 普通
+  URGENT // 加急
+}
+
+enum ContractType {
+  PURCHASE // 采购合同
+  SALES // 销售合同
+  SERVICE // 服务合同
+  NDA // 保密协议
+}
+
+enum SealType {
+  OFFICIAL_SEAL // 公章
+  CONTRACT_SEAL // 合同章
+  LEGAL_REP_SEAL // 法人章
+}
+
+enum FileStatus {
+  UPLOADED // 已上传，尚未被正式申请引用
+  LINKED // 已关联到正式申请
+}
+
+enum NodeType {
+  DEPARTMENT_MANAGER // 部门主管（按申请人部门 manager_user_id 解析）
+  LEGAL_REVIEW // 法务审批（全局岗位映射）
+  CFO // 财务总监（全局岗位映射）
+}
+
+enum NodeStatus {
+  PENDING // 待处理
+  APPROVED // 已同意
+  REJECTED // 已驳回
+  CANCELLED // 已取消
+  SKIPPED // 已跳过
+}
+
+enum TaskStatus {
+  PENDING // 待处理
+  APPROVED // 已同意
+  REJECTED // 已驳回
+  TRANSFERRED // 已转交
+  WAITING_SIGN // 等待加签完成
+  CANCELLED // 已取消
+  SKIPPED // 已跳过
+}
+
+enum TaskType {
+  APPROVAL // 常规审批任务
+  SIGNATURE // 加签任务
+}
+
+enum ActionType {
+  LOGIN
+  SUBMIT // 提交申请
+  SAVE_DRAFT // 保存草稿
+  APPROVE // 同意
+  REJECT // 驳回
+  TRANSFER // 转交
+  ADD_SIGN // 加签
+  SIGN_APPROVE // 加签同意
+  SIGN_REJECT // 加签驳回
+  WITHDRAW // 撤回
+  TERMINATE // 强制终止
+  UPLOAD_FILE // 上传附件
+  DOWNLOAD_FILE // 下载附件
+  EXPORT_REQUEST // 发起导出
+  EXPORT_DOWNLOAD // 下载导出结果
+}
+
+enum SignStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ExportJobStatus {
+  QUEUED // 排队中
+  RUNNING // 执行中
+  SUCCEEDED // 成功
+  FAILED // 失败
+  EXPIRED // 结果文件过期
+}
+
+// ---------------------------------------------------------------------------
+// 组织与用户
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String       @id @default(uuid()) @db.Uuid
+  employee_no    String       @unique
+  name           String
+  email          String       @unique
+  password_hash  String
+  department_id  String?      @db.Uuid
+  job_level      Int          @default(1) // 1员工/2主管/3经理·法务/4总监/5高管
+  status         UserStatus   @default(ACTIVE)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @updatedAt @db.Timestamptz(6)
+
+  department Department? @relation(fields: [department_id], references: [id])
+  roles      UserRole[]
+
+  managed_departments    Department[]      @relation("DepartmentManager")
+  submitted_contracts    Contract[]        @relation("Applicant")
+  uploaded_files         File[]            @relation("Uploader")
+  approval_tasks         ApprovalTask[]    @relation("Assignee")
+  approval_actions       ApprovalAction[]  @relation("Actor")
+  position_assignments   ApprovalPositionAssignee[]
+  export_jobs            ExportJob[]       @relation("Requester")
+  signatures             ApprovalSignature[]
+
+  @@index([department_id])
+  @@index([status])
+}
+
+model Department {
+  id               String   @id @default(uuid()) @db.Uuid
+  code             String   @unique
+  name             String
+  parent_id        String?  @db.Uuid
+  manager_user_id  String?  @db.Uuid
+  status           String   @default("ACTIVE")
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  parent   Department?  @relation("DepartmentTree", fields: [parent_id], references: [id])
+  children Department[] @relation("DepartmentTree")
+  manager  User?        @relation("DepartmentManager", fields: [manager_user_id], references: [id])
+  users    User[]
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique // employee / approver / admin / auditor
+  name        String
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  userRoles UserRole[]
+}
+
+model UserRole {
+  user_id String @db.Uuid
+  role_id String @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id])
+  role Role @relation(fields: [role_id], references: [id])
+
+  @@id([user_id, role_id])
+}
+
+// 全局审批岗位映射（法务审批 / 财务总监 等，非「部门主管」——部门主管走 departments.manager_user_id）
+model ApprovalPosition {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique // LEGAL_REVIEW / CFO
+  name        String
+  description String?
+  status      String   @default("ACTIVE")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  assignees ApprovalPositionAssignee[]
+}
+
+model ApprovalPositionAssignee {
+  id          String   @id @default(uuid()) @db.Uuid
+  position_id String   @db.Uuid
+  user_id     String   @db.Uuid
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  position ApprovalPosition @relation(fields: [position_id], references: [id])
+  user     User             @relation(fields: [user_id], references: [id])
+
+  @@unique([position_id, user_id])
+  @@index([position_id])
+}
+
+// ---------------------------------------------------------------------------
+// 合同申请（申请单 + 明细 + 附件）
+// ---------------------------------------------------------------------------
+
+model Contract {
+  id                    String          @id @default(uuid()) @db.Uuid
+  application_no        String          @unique // CT20260001
+  applicant_id          String          @db.Uuid
+  applicant_name_snapshot String
+  department_id         String          @db.Uuid
+  department_name_snapshot String
+  reason                String
+  urgency               Urgency         @default(NORMAL)
+  total_amount          Decimal         @default(0) @db.Decimal(18, 2)
+  status                ContractStatus  @default(DRAFT)
+  approval_instance_id  String?         @unique @db.Uuid
+  version               Int             @default(0) // 乐观锁
+  submitted_at          DateTime?       @db.Timestamptz(6)
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @updatedAt @db.Timestamptz(6)
+
+  applicant          User               @relation("Applicant", fields: [applicant_id], references: [id])
+  items              ContractItem[]
+  approval_instance  ApprovalInstance?  @relation(fields: [approval_instance_id], references: [id])
+
+  @@index([applicant_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model ContractItem {
+  id            String       @id @default(uuid()) @db.Uuid
+  contract_id   String       @db.Uuid
+  contract_name String
+  contract_type ContractType
+  amount        Decimal      @db.Decimal(18, 2)
+  counterparty  String
+  seal_type     SealType
+  file_id       String?      @unique @db.Uuid
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime     @updatedAt @db.Timestamptz(6)
+
+  contract Contract @relation(fields: [contract_id], references: [id])
+  file     File?    @relation(fields: [file_id], references: [id])
+
+  @@index([contract_id])
+  @@index([file_id])
+}
+
+model File {
+  id            String     @id @default(uuid()) @db.Uuid
+  storage_key   String     @unique // 随机对象键，不暴露物理路径
+  original_name String
+  mime_type     String
+  size_bytes    BigInt
+  checksum      String
+  uploaded_by   String     @db.Uuid
+  status        FileStatus @default(UPLOADED)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+
+  uploader User           @relation("Uploader", fields: [uploaded_by], references: [id])
+  item     ContractItem?
+
+  @@index([uploaded_by])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// 审批实例 / 节点快照 / 任务 / 动作 / 加签
+// ---------------------------------------------------------------------------
+
+model ApprovalInstance {
+  id                    String          @id @default(uuid()) @db.Uuid
+  business_type        String          @default("CONTRACT")
+  business_id           String          @db.Uuid // 关联 contract.id
+  rule_version          String
+  total_amount_snapshot Decimal         @db.Decimal(18, 2)
+  status                ContractStatus  @default(PENDING_APPROVAL)
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  completed_at          DateTime?       @db.Timestamptz(6)
+
+  contract Contract?
+  nodes    ApprovalNode[]
+  tasks    ApprovalTask[]
+  actions  ApprovalAction[]
+
+  @@index([business_id])
+  @@index([status])
+}
+
+model ApprovalNode {
+  id                      String     @id @default(uuid()) @db.Uuid
+  instance_id             String     @db.Uuid
+  sequence                Int        // 节点顺序，从 1 起
+  node_type               NodeType
+  approver_id             String     @db.Uuid
+  approver_name_snapshot  String
+  department_id_snapshot  String?
+  status                  NodeStatus @default(PENDING)
+  activated_at            DateTime?  @db.Timestamptz(6)
+  completed_at            DateTime?  @db.Timestamptz(6)
+
+  instance ApprovalInstance @relation(fields: [instance_id], references: [id])
+  tasks    ApprovalTask[]
+  actions  ApprovalAction[]
+
+  @@index([instance_id])
+  @@index([approver_id])
+  @@index([status])
+}
+
+model ApprovalTask {
+  id           String     @id @default(uuid()) @db.Uuid
+  instance_id  String     @db.Uuid
+  node_id      String     @db.Uuid
+  assignee_id  String     @db.Uuid
+  task_type    TaskType   @default(APPROVAL)
+  status       TaskStatus @default(PENDING)
+  version      Int        @default(0) // 乐观锁
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  completed_at DateTime?  @db.Timestamptz(6)
+
+  instance   ApprovalInstance @relation(fields: [instance_id], references: [id])
+  node       ApprovalNode     @relation(fields: [node_id], references: [id])
+  assignee   User             @relation("Assignee", fields: [assignee_id], references: [id])
+  actions            ApprovalAction[]
+  parent_signatures  ApprovalSignature[] @relation("ParentTask")
+  signature_task_of  ApprovalSignature?  @relation("SignatureTask")
+
+  @@index([assignee_id])
+  @@index([status])
+  @@index([instance_id])
+}
+
+model ApprovalAction {
+  id            String     @id @default(uuid()) @db.Uuid
+  instance_id   String     @db.Uuid
+  node_id       String?    @db.Uuid
+  task_id       String?    @db.Uuid
+  actor_id      String     @db.Uuid
+  action_type   ActionType
+  comment       String? // 驳回/终止/转交原因
+  from_user_id  String?    @db.Uuid
+  to_user_id    String?    @db.Uuid
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+
+  actor    User             @relation("Actor", fields: [actor_id], references: [id])
+  instance ApprovalInstance    @relation(fields: [instance_id], references: [id])
+  node     ApprovalNode?     @relation(fields: [node_id], references: [id])
+  task     ApprovalTask?     @relation(fields: [task_id], references: [id])
+
+  @@index([instance_id])
+  @@index([actor_id])
+  @@index([task_id])
+}
+
+model ApprovalSignature {
+  id                String     @id @default(uuid()) @db.Uuid
+  parent_task_id    String     @db.Uuid
+  signature_task_id String?    @unique @db.Uuid
+  signer_id         String     @db.Uuid
+  status            SignStatus @default(PENDING)
+  created_at        DateTime   @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime?  @db.Timestamptz(6)
+
+  parent_task    ApprovalTask? @relation("ParentTask", fields: [parent_task_id], references: [id])
+  signature_task ApprovalTask? @relation("SignatureTask", fields: [signature_task_id], references: [id])
+  signer         User          @relation(fields: [signer_id], references: [id])
+
+  @@index([parent_task_id])
+  @@index([signer_id])
+}
+
+// ---------------------------------------------------------------------------
+// 审计与导出
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  actor_id       String    @db.Uuid
+  action         ActionType
+  resource_type  String
+  resource_id    String
+  request_id     String?
+  ip_address     String?
+  user_agent     String?
+  before_snapshot Json?
+  after_snapshot  Json?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_id])
+  @@index([resource_id])
+  @@index([request_id])
+  @@index([created_at])
+}
+
+model ExportJob {
+  id               String          @id @default(uuid()) @db.Uuid
+  requested_by     String          @db.Uuid
+  filters_snapshot Json
+  status           ExportJobStatus @default(QUEUED)
+  row_count        Int?
+  file_id          String?         @db.Uuid
+  started_at       DateTime?       @db.Timestamptz(6)
+  completed_at     DateTime?       @db.Timestamptz(6)
+  duration_ms      Int?
+  error_code       String?
+  error_message    String?
+  expires_at       DateTime?       @db.Timestamptz(6)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+
+  requester User @relation("Requester", fields: [requested_by], references: [id])
+
+  @@index([requested_by])
+  @@index([status])
+  @@index([created_at])
+}
