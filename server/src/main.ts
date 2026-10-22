@@ -1,10 +1,12 @@
+import 'dotenv/config';
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/http-exception.filter';
-import { RequestIdMiddleware } from './common/request-id.middleware';
-import { TransformInterceptor } from './common/transform.interceptor';
+import { AppModule } from './app.module.js';
+import { HttpExceptionFilter } from './common/http-exception.filter.js';
+import { RequestIdMiddleware } from './common/request-id.middleware.js';
+import { TransformInterceptor } from './common/transform.interceptor.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
