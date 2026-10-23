@@ -1,4 +1,8 @@
-import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
+import type {
+  CallHandler,
+  ExecutionContext,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import type { Observable } from 'rxjs';
 import { map } from 'rxjs';
@@ -14,14 +18,31 @@ export interface Envelope<T = unknown> {
  * PRD §11.1。
  */
 @Injectable()
-export class TransformInterceptor<T> implements NestInterceptor<T, Envelope<T>> {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<Envelope<T>> {
+export class TransformInterceptor<T>
+  implements NestInterceptor<T, Envelope<T>>
+{
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<Envelope<T>> {
     return next.handle().pipe(
       map((data: T) => ({
         code: 'OK',
         message: 'success',
-        data,
+        data: this.serialize(data),
       })),
     );
+  }
+
+  /**
+   * JSON 序列化前把 BigInt 转字符串，避免 JSON.stringify(BigInt) 抛 TypeError。
+   * Prisma 的 size_bytes 等 BigInt 字段会走到这里。
+   */
+  private serialize(value: unknown): T {
+    return JSON.parse(
+      JSON.stringify(value, (_key, val) =>
+        typeof val === 'bigint' ? val.toString() : val,
+      ),
+    ) as T;
   }
 }

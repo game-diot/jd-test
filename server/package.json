@@ -16,6 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node --esm --transpile-only prisma/seed.ts",
+    "prisma:seed:history": "ts-node --esm --transpile-only prisma/seed-history.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
@@ -43,10 +44,13 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^22.19.6",
     "@types/passport-jwt": "^4.0.1",
+    "@types/supertest": "^7.2.1",
     "prisma": "^6.19.0",
+    "supertest": "^7.3.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -54,6 +58,8 @@
   "allowScripts": {
     "prisma": true,
     "@prisma/client@6.19.3": true,
-    "@prisma/engines": true
+    "@prisma/engines": true,
+    "esbuild@0.28.2": true,
+    "@swc/core@1.16.20": true
   }
 }
