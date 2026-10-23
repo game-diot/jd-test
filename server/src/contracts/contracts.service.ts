@@ -326,6 +326,8 @@ export class ContractsService {
       contract_type: it.contractType as ContractType,
       amount: it.amount,
       counterparty: it.counterparty.trim(),
+      credit_code: it.creditCode?.trim() || null,
+      bank_account: it.bankAccount?.trim() || null,
       seal_type: it.sealType as SealType,
       file_id: it.fileId ?? null,
     }));

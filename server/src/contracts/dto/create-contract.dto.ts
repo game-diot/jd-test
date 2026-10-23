@@ -30,6 +30,14 @@ export class ContractItemDto {
   @IsNotEmpty({ message: '签约相对方不能为空' })
   counterparty!: string;
 
+  @IsString()
+  @IsOptional()
+  creditCode?: string;
+
+  @IsString()
+  @IsOptional()
+  bankAccount?: string;
+
   @IsIn(SEAL_TYPES, { message: '用印类型不合法' })
   sealType!: string;
 

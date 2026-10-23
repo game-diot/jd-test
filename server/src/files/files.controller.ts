@@ -1,13 +1,18 @@
 import {
   BadRequestException,
   Controller,
+  Get,
+  Param,
   Post,
+  Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, JwtUser } from '../auth/decorators.js';
+import { Response } from 'express';
+import { CurrentUser, JwtUser, Public } from '../auth/decorators.js';
 import { FilesService } from './files.service.js';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MiB
@@ -31,5 +36,26 @@ export class FilesController {
       });
     }
     return this.files.save(file, user.userId);
+  }
+
+  @Post(':id/download-url')
+  downloadUrl(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.files.getDownloadUrl(id, user.userId);
+  }
+
+  @Public()
+  @Get(':id/download')
+  async download(
+    @Param('id') id: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+  ) {
+    const { stream, name, mime } = await this.files.resolveDownload(id, token);
+    res.setHeader('Content-Type', mime);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+    );
+    stream.pipe(res);
   }
 }

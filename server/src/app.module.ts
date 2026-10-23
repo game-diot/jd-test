@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { LedgerModule } from './ledger/ledger.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AdminModule } from './admin/admin.module.js';
     FilesModule,
     ContractsModule,
     AdminModule,
+    LedgerModule,
   ],
   providers: [
     RequestIdMiddleware,

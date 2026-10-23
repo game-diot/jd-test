@@ -257,6 +257,8 @@ model ContractItem {
   contract_type ContractType
   amount        Decimal      @db.Decimal(18, 2)
   counterparty  String
+  credit_code   String? // 统一社会信用代码（脱敏展示）
+  bank_account  String? // 银行账号（脱敏展示）
   seal_type     SealType
   file_id       String?      @unique @db.Uuid
   created_at    DateTime     @default(now()) @db.Timestamptz(6)
