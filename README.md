@@ -1,164 +1,91 @@
-<h1 align="center">Ant Design Pro</h1>
+# 企业级合同用印与审批平台
 
-<div align="center">
+企业内部合同用印申请、逐级审批、台账查询与审计导出的统一 Web 管理平台。基于 Ant Design Pro v6 模板二次开发，前后端单仓。
 
-An out-of-box UI solution for enterprise applications as a React boilerplate.
+## 技术栈
 
-[![CI](https://github.com/ant-design/ant-design-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/ant-design/ant-design-pro/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/ant-design/ant-design-pro.svg)](https://github.com/ant-design/ant-design-pro/releases)
-[![Build With Utoo](https://img.shields.io/badge/build%20with-utoo-028fe4.svg)](https://utoo.land)
-[![Build With Umi](https://img.shields.io/badge/build%20with-umi-028fe4.svg)](https://umijs.org/)
-[![Checked with Biome](https://img.shields.io/badge/Checked_with-Biome-60a5fa?style=flat&logo=biome)](https://biomejs.dev)
-[![Ant Design](https://badgen.net/badge/icon/Ant%20Design?icon=https://gw.alipayobjects.com/zos/antfincdn/Pp4WPgVDB3/KDpgvguMpGfqaHPjicRK.svg&label)](https://ant.design/)
+- **前端**：Ant Design Pro v6（React 19 + Ant Design 6 + ProComponents 3 + Umi Max 4 + TypeScript）
+- **后端**：NestJS + TypeScript + Prisma，目录 `server/`
+- **数据库**：PostgreSQL
+- **文件存储**：私有目录 + 签名 URL 下载
+- **测试**：Vitest + Supertest（后端 e2e）
 
-Language: English | [简体中文](./README.zh-CN.md)
+## 核心功能
 
-<img width="1718" height="1191" alt="light theme preview" src="https://github.com/user-attachments/assets/74ad0b4a-e086-4955-8edd-9f2cff31aee8" />
-<img width="1718" height="1191" alt="dark theme preview" src="https://github.com/user-attachments/assets/d4bcb7c1-42c7-4c0f-b130-1193a931f9f7" />
+1. **合同用印申请**：动态明细、金额实时汇总、保密协议联动、审批链实时预览。
+2. **审批中心**：待办/已办/我提交的/管理员全量；同意、驳回（≥10 字）、转交（同部门）、加签（同级/上级）、撤回、强制终止。
+3. **合同台账与审计导出**：多条件组合查询 + URL Query 同步、敏感字段脱敏、附件二次鉴权、10 万条流式 Excel 导出（OOM 防御 + 审计）。
 
-</div>
+## 快速启动（5 分钟）
 
-- Preview: https://preview.pro.ant.design
-- Documentation: [docs/cheatsheet.en-US.md](./docs/cheatsheet.en-US.md)
-- ChangeLog: https://github.com/ant-design/ant-design-pro/releases
-- FAQ: [docs/cheatsheet.en-US.md#faq](./docs/cheatsheet.en-US.md#faq)
-- **v6 Released!** — [What's new in v6](https://github.com/ant-design/ant-design-pro/releases/tag/v6.0.0)
+### 前置
 
-## Features
+- Node.js ≥ 22（前端 dev/build 需 **Node 20**：`nvm use 20`）
+- PostgreSQL（本机已装，或 Docker）
 
-- :bulb: **TypeScript**: A language for application-scale JavaScript
-- :scroll: **Blocks**: Build page with block template
-- :gem: **Neat Design**: Built on [Ant Design 6](https://ant.design/) specification
-- :triangular_ruler: **Common Templates**: Typical templates for enterprise applications
-- :rocket: **State of The Art Development**: Newest development stack of React 19/[Umi Max 4](https://umijs.org/)/[antd 6](https://ant.design/)/[utoopack](https://utoo.land)
-- :iphone: **Responsive**: Designed for variable screen sizes
-- :art: **Theming**: Customizable theme with [Tailwind CSS v4](https://tailwindcss.com/) + [antd-style](https://github.com/ant-design/antd-style)
-- :globe_with_meridians: **International**: Built-in i18n solution
-- :gear: **Best Practices**: Solid workflow to make your code healthy
-- :1234: **Mock development**: Easy to use mock development solution
-- :robot: **AI Assistant**: Built-in AI chatbot page powered by [Ant Design X](https://x.ant.design/)
-- :white_check_mark: **UI Test**: Fly safely with unit and e2e tests
-
-## Templates
-
-```
-- Welcome
-- Dashboard
-  - Analysis
-  - Monitor
-  - Workplace
-- Form
-  - Basic Form
-  - Step Form
-  - Advanced Form
-- List
-  - Search List (Articles/Projects/Applications)
-  - Table List
-  - Basic List
-  - Card List
-- Profile
-  - Basic Profile
-  - Advanced Profile
-- Result
-  - Success
-  - Fail
-- Exception
-  - 403
-  - 404
-  - 500
-- Account
-  - Account Center
-  - Account Settings
-- AI Assistant
-- User
-  - Login
-  - Register
-  - Register Result
-```
-
-## Usage
-
-### Get Started
-
-Clone or download this repository to your local machine:
+### 1. 初始化数据库
 
 ```bash
-git clone --depth=1 https://github.com/ant-design/ant-design-pro.git myapp
-cd myapp
+createdb contract_seal   # 或 psql -c 'CREATE DATABASE contract_seal;'
 ```
 
-### Installation
+### 2. 启动后端
 
 ```bash
+cd server
+cp .env.example .env     # 修改 DATABASE_URL 的密码为你的 PG 密码
 npm install
-```
-
-### Development
-
-```bash
-# Start development server (full version by default)
-npm start
-```
-
-### Simplify to Simple Version
-
-This project includes all blocks by default. If you need a minimal version, run:
-
-```bash
-npm run simple
-```
-
-This will:
-- Remove extra page directories (dashboard, form, list/*, profile, result, exception, account, etc.)
-- Remove extra mock files
-- Replace routes with simple version
-- Remove extra dependencies from package.json
-
-**Note**: This operation is irreversible and will permanently delete files.
-
-### Build
-
-```bash
+npm run prisma:generate
+npm run prisma:migrate   # 应用迁移（prisma migrate dev）
+npm run prisma:seed      # 初始化 4 角色/4 部门/7 账号/2 审批岗位
+npm run prisma:seed:history  # 预置 2000 条历史单据
 npm run build
+npm run start:prod       # 监听 http://127.0.0.1:7001/api/v1
 ```
 
-## AI Skills (Claude Code)
-
-This project ships with two built-in [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) in `.claude/skills/`:
-
-| Skill | Trigger | Description |
-|---|---|---|
-| `/pro-upgrade` | "upgrade pro", "update to latest" | Auto-upgrade to the latest Ant Design Pro version. Diffs the latest template, merges framework changes while preserving your business code. |
-| `/antd` | antd-related code or questions | Query antd component APIs, props, tokens, demos; lint for deprecated usage; migrate between versions — all via `@ant-design/cli`. |
-
-**Usage in Claude Code:**
+### 3. 启动前端
 
 ```bash
-# Upgrade the project to latest Pro version
-/pro-upgrade
-
-# Query antd component info, debug issues, run lint, etc.
-/antd
+nvm use 20
+npm install
+PORT=8001 npm run dev   # http://localhost:8001  （dev 走 proxy 连后端 7001）
 ```
 
-> 💡 If your project was cloned from this repo, these skills are already included — no installation needed. To get the latest skill definitions, pull the updates from the template or run `npx skills add ant-design/ant-design-pro` to refresh them.
+浏览器打开 `http://localhost:8001`，用下方测试账号登录。
 
-## Browsers support
+> 生产构建：`npm run build`（后端可同域 serve `dist/`，见 docs/architecture.md 部署说明）。
 
-Modern browsers.
+## 测试账号（统一密码 `Passw0rd!`）
 
-| [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_48x48.png" alt="Edge" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Edge | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_48x48.png" alt="Firefox" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Firefox | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_48x48.png" alt="Chrome" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Chrome | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_48x48.png" alt="Safari" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Safari |
-| --- | --- | --- | --- |
-| Edge | last 2 versions | last 2 versions | last 2 versions |
+| 角色 | 账号 | 权限 |
+|---|---|---|
+| 普通员工 | `zhangsan@corp.com` | 创建/撤回本人申请 |
+| 部门主管(IT) | `lizhuguan@corp.com` | 主管节点审批 + 转交/加签 |
+| 法务 | `zhaofawu@corp.com` | 法务节点审批 |
+| 财务总监 | `qianzongjian@corp.com` | 财务总监节点审批 |
+| 系统管理员 | `admin@corp.com` | 全量申请 + 强制终止 + 台账 + 导出 |
+| 合规审计员 | `auditor@corp.com` | 台账查询 + 脱敏 + 导出 |
 
-## Contributing
+详见 [docs/test-accounts.md](docs/test-accounts.md)。
 
-Any type of contribution is welcome, here are some examples of how you may contribute to this project:
+## 自动化测试
 
-- Use Ant Design Pro in your daily work.
-- Submit [issues](http://github.com/ant-design/ant-design-pro/issues) to report bugs or ask questions.
-- Propose [pull requests](http://github.com/ant-design/ant-design-pro/pulls) to improve our code.
+```bash
+cd server
+npm test                 # 12 个 e2e 用例：三级审批流/越权403/状态翻转/审计/脱敏
+```
 
-<a href="https://openomy.app/github/ant-design/ant-design-pro" target="_blank" style="display: block; width: 100%;" align="center">
-  <img src="https://openomy.app/svg?repo=ant-design/ant-design-pro&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
-</a>
+## 文档
+
+- [架构设计说明](docs/architecture.md)
+- [测试账号矩阵](docs/test-accounts.md)
+
+## 审批链规则
+
+| 金额 | 审批链 |
+|---|---|
+| < 50 万 | 部门主管 |
+| 50 万 ~ 200 万 | 部门主管 → 法务 |
+| ≥ 200 万 | 部门主管 → 法务 → 财务总监 |
+
+审批链提交时后端重算并**固化快照**，后续组织/规则变更不影响在途单据。
