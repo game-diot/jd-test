@@ -228,6 +228,66 @@ export class ContractsService {
     });
   }
 
+  /** 撤回：仅待审批 + 首节点尚未处理 */
+  async withdraw(id: string, userId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: {
+        approval_instance: {
+          include: {
+            nodes: { orderBy: { sequence: 'asc' }, include: { tasks: true } },
+          },
+        },
+      },
+    });
+    if (!contract) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: '申请单不存在' });
+    }
+    if (contract.applicant_id !== userId) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: '无权撤回该申请单' });
+    }
+    if (contract.status !== 'PENDING_APPROVAL') {
+      throw new BadRequestException({ code: 'WITHDRAW_NOT_ALLOWED', message: '仅待审批状态可撤回' });
+    }
+    const firstTask = contract.approval_instance?.nodes[0]?.tasks[0];
+    if (!firstTask || firstTask.status !== 'PENDING') {
+      throw new BadRequestException({
+        code: 'WITHDRAW_NOT_ALLOWED',
+        message: '申请已进入后续审批节点，不能撤回',
+      });
+    }
+    const instanceId = contract.approval_instance!.id;
+
+    return this.prisma.$transaction(async (tx) => {
+      const lock = await tx.contract.updateMany({
+        where: { id, status: 'PENDING_APPROVAL' },
+        data: { status: 'WITHDRAWN' },
+      });
+      if (lock.count === 0) {
+        throw new ConflictException({ code: 'ALREADY_WITHDRAWN', message: '申请已撤回或状态变更' });
+      }
+      await tx.approvalTask.updateMany({
+        where: { instance_id: instanceId, status: 'PENDING' },
+        data: { status: 'CANCELLED' },
+      });
+      await tx.approvalInstance.update({
+        where: { id: instanceId },
+        data: { status: 'WITHDRAWN', completed_at: new Date() },
+      });
+      await tx.auditLog.create({
+        data: {
+          actor_id: userId,
+          action: 'WITHDRAW',
+          resource_type: 'CONTRACT',
+          resource_id: id,
+          before_snapshot: { status: 'PENDING_APPROVAL' },
+          after_snapshot: { status: 'WITHDRAWN' },
+        },
+      });
+      return { status: 'WITHDRAWN' };
+    });
+  }
+
   /** 业务规则二次校验 + 金额合计（后端为准，忽略客户端合计） */
   private validateAndSum(items: ContractItemDto[]): string {
     let sum = 0;

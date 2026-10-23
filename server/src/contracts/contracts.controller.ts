@@ -37,4 +37,9 @@ export class ContractsController {
   submit(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.contracts.submit(id, user.userId);
   }
+
+  @Post(':id/withdraw')
+  withdraw(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.contracts.withdraw(id, user.userId);
+  }
 }

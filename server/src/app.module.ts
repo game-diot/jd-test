@@ -8,6 +8,7 @@ import { FilesModule } from './files/files.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ContractsModule } from './contracts/contracts.module.js';
     HealthModule,
     FilesModule,
     ContractsModule,
+    AdminModule,
   ],
   providers: [
     RequestIdMiddleware,
