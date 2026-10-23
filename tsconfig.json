@@ -19,5 +19,6 @@
       "@root/*": ["./*"]
     }
   },
-  "include": ["./**/*.d.ts", "./**/*.ts", "./**/*.tsx"]
+  "include": ["./**/*.d.ts", "./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules", "server", "dist", "src/.umi", "src/.umi-production", "src/.umi-test"]
 }

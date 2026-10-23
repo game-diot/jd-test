@@ -19,7 +19,7 @@ import {
   OfflineBanner,
   VersionDropdown,
 } from '@/components';
-import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
+import { currentUser, type UserProfile } from '@/services/auth';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 
@@ -31,16 +31,14 @@ const loginPath = '/user/login';
  * */
 export async function getInitialState(): Promise<{
   settings?: Partial<LayoutSettings>;
-  currentUser?: API.CurrentUser;
+  currentUser?: UserProfile;
   loading?: boolean;
-  fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
+  fetchUserInfo?: () => Promise<UserProfile | undefined>;
   settingDrawerOpen?: boolean;
 }> {
   const fetchUserInfo = async () => {
     try {
-      const msg = await queryCurrentUser({
-        skipErrorHandler: true,
-      });
+      const msg = await currentUser(true);
       return msg.data;
     } catch (_error) {
       const { pathname, search, hash } = history.location;
