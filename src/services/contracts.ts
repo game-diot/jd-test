@@ -31,3 +31,7 @@ export async function getContract(id: string) {
 export async function getMyContracts() {
   return request('/api/v1/contracts/mine', { method: 'GET' });
 }
+
+export async function submitContract(id: string) {
+  return request(`/api/v1/contracts/${id}/submit`, { method: 'POST' });
+}

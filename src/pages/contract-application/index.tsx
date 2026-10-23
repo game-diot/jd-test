@@ -20,7 +20,11 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import type { UserProfile } from '@/services/auth';
-import { type ContractItemForm, createContract } from '@/services/contracts';
+import {
+  type ContractItemForm,
+  createContract,
+  submitContract,
+} from '@/services/contracts';
 import { uploadFile } from '@/services/files';
 
 const CONTRACT_TYPE_OPTIONS = [
@@ -65,6 +69,8 @@ const ContractApplication: React.FC = () => {
   const [urgency, setUrgency] = useState<'NORMAL' | 'URGENT'>('NORMAL');
   const [items, setItems] = useState<ContractItemForm[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   const total = useMemo(
     () =>
@@ -122,10 +128,32 @@ const ContractApplication: React.FC = () => {
     }
     setSaving(true);
     try {
-      await createContract({ reason: reason.trim(), urgency, items });
-      message.success('草稿已保存');
+      const res = await createContract({
+        reason: reason.trim(),
+        urgency,
+        items,
+      });
+      setDraftId(res.data?.id ?? null);
+      message.success('草稿已保存，可提交');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onSubmit = async () => {
+    if (!draftId) {
+      message.warning('请先保存草稿');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await submitContract(draftId);
+      message.success('已提交，进入审批流程');
+      setDraftId(null);
+    } catch {
+      // 错误由 request 层统一提示
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -363,10 +391,17 @@ const ContractApplication: React.FC = () => {
         </Card>
 
         <Space>
-          <Button type="primary" loading={saving} onClick={onSave}>
+          <Button loading={saving} onClick={onSave}>
             保存草稿
           </Button>
-          <Button disabled>提交申请（阶段 6 开放）</Button>
+          <Button
+            type="primary"
+            loading={submitting}
+            disabled={!draftId}
+            onClick={onSubmit}
+          >
+            提交申请
+          </Button>
         </Space>
       </Space>
     </PageContainer>

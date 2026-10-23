@@ -32,4 +32,9 @@ export class ContractsController {
   ) {
     return this.contracts.update(id, user.userId, dto);
   }
+
+  @Post(':id/submit')
+  submit(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.contracts.submit(id, user.userId);
+  }
 }

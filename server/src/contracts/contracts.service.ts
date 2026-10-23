@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import type { ContractType, SealType, Urgency } from '@prisma/client';
+import { ApprovalRulesService } from '../approval/approval-rules.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CreateContractDto,
@@ -19,7 +21,10 @@ function parseAmount(s: string): number {
 
 @Injectable()
 export class ContractsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private approvalRules: ApprovalRulesService,
+  ) {}
 
   async create(userId: string, dto: CreateContractDto) {
     const user = await this.prisma.user.findUnique({
@@ -99,6 +104,127 @@ export class ContractsService {
         items: { create: this.toItemData(dto.items) },
       },
       include: { items: true },
+    });
+  }
+
+  /** 提交：乐观锁 + 事务内生成审批链快照 + 首个待批任务 + 审计 */
+  async submit(id: string, userId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: { items: { include: { file: true } } },
+    });
+    if (!contract) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: '申请单不存在' });
+    }
+    if (contract.applicant_id !== userId) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: '无权提交该申请单' });
+    }
+    if (contract.status !== 'DRAFT') {
+      throw new BadRequestException({ code: 'NOT_DRAFT', message: '仅草稿状态可提交' });
+    }
+    for (const item of contract.items) {
+      if (!item.file_id) {
+        throw new BadRequestException({
+          code: 'FILE_REQUIRED',
+          message: `合同「${item.contract_name}」缺少附件`,
+        });
+      }
+    }
+
+    // 金额后端重算（忽略客户端）
+    const total = contract.items.reduce(
+      (sum, it) => sum + Number(it.amount),
+      0,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      // 乐观锁：DRAFT → PENDING，影响行数为 0 = 已被并发提交
+      const lock = await tx.contract.updateMany({
+        where: { id, status: 'DRAFT' },
+        data: { status: 'PENDING_APPROVAL', submitted_at: new Date() },
+      });
+      if (lock.count === 0) {
+        throw new ConflictException({
+          code: 'ALREADY_SUBMITTED',
+          message: '申请已提交，请勿重复操作',
+        });
+      }
+
+      const route = this.approvalRules.computeRoute(total);
+      const instance = await tx.approvalInstance.create({
+        data: {
+          business_type: 'CONTRACT',
+          business_id: id,
+          rule_version: 'v1',
+          total_amount_snapshot: total.toFixed(2),
+          status: 'PENDING_APPROVAL',
+        },
+      });
+
+      for (let i = 0; i < route.length; i += 1) {
+        const nodeType = route[i];
+        const approver = await this.approvalRules.resolveApprover(
+          nodeType,
+          contract.department_id,
+          tx,
+        );
+        if (!approver) {
+          throw new ConflictException({
+            code: 'APPROVER_NOT_FOUND',
+            message: `审批人缺失：${nodeType}`,
+          });
+        }
+        const node = await tx.approvalNode.create({
+          data: {
+            instance_id: instance.id,
+            sequence: i + 1,
+            node_type: nodeType,
+            approver_id: approver.id,
+            approver_name_snapshot: approver.name,
+            department_id_snapshot: approver.department_id,
+            status: 'PENDING',
+            activated_at: i === 0 ? new Date() : null,
+          },
+        });
+        if (i === 0) {
+          await tx.approvalTask.create({
+            data: {
+              instance_id: instance.id,
+              node_id: node.id,
+              assignee_id: approver.id,
+              task_type: 'APPROVAL',
+              status: 'PENDING',
+            },
+          });
+        }
+      }
+
+      await tx.contract.update({
+        where: { id },
+        data: { approval_instance_id: instance.id },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actor_id: userId,
+          action: 'SUBMIT',
+          resource_type: 'CONTRACT',
+          resource_id: id,
+          before_snapshot: { status: 'DRAFT' },
+          after_snapshot: {
+            status: 'PENDING_APPROVAL',
+            total: total.toFixed(2),
+            application_no: contract.application_no,
+          },
+        },
+      });
+
+      return {
+        id,
+        application_no: contract.application_no,
+        total: total.toFixed(2),
+        status: 'PENDING_APPROVAL',
+      };
     });
   }
 

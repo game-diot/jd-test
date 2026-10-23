@@ -120,47 +120,50 @@ enum ExportJobStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id             String       @id @default(uuid()) @db.Uuid
-  employee_no    String       @unique
-  name           String
-  email          String       @unique
-  password_hash  String
-  department_id  String?      @db.Uuid
-  job_level      Int          @default(1) // 1员工/2主管/3经理·法务/4总监/5高管
-  status         UserStatus   @default(ACTIVE)
-  created_at     DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime     @updatedAt @db.Timestamptz(6)
+  id            String     @id @default(uuid()) @db.Uuid
+  employee_no   String     @unique
+  name          String
+  email         String     @unique
+  password_hash String
+  department_id String?    @db.Uuid
+  job_level     Int        @default(1) // 1员工/2主管/3经理·法务/4总监/5高管
+  status        UserStatus @default(ACTIVE)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime   @updatedAt @db.Timestamptz(6)
 
   department Department? @relation(fields: [department_id], references: [id])
   roles      UserRole[]
 
-  managed_departments    Department[]      @relation("DepartmentManager")
-  submitted_contracts    Contract[]        @relation("Applicant")
-  uploaded_files         File[]            @relation("Uploader")
-  approval_tasks         ApprovalTask[]    @relation("Assignee")
-  approval_actions       ApprovalAction[]  @relation("Actor")
-  position_assignments   ApprovalPositionAssignee[]
-  export_jobs            ExportJob[]       @relation("Requester")
-  signatures             ApprovalSignature[]
+  managed_departments  Department[]               @relation("DepartmentManager")
+  submitted_contracts  Contract[]                 @relation("Applicant")
+  uploaded_files       File[]                     @relation("Uploader")
+  approval_tasks       ApprovalTask[]             @relation("Assignee")
+  approval_actions     ApprovalAction[]           @relation("Actor")
+  position_assignments ApprovalPositionAssignee[]
+  export_jobs          ExportJob[]                @relation("Requester")
+  signatures           ApprovalSignature[]
 
   @@index([department_id])
   @@index([status])
+  @@map("users")
 }
 
 model Department {
-  id               String   @id @default(uuid()) @db.Uuid
-  code             String   @unique
-  name             String
-  parent_id        String?  @db.Uuid
-  manager_user_id  String?  @db.Uuid
-  status           String   @default("ACTIVE")
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String
+  parent_id       String?  @db.Uuid
+  manager_user_id String?  @db.Uuid
+  status          String   @default("ACTIVE")
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
 
   parent   Department?  @relation("DepartmentTree", fields: [parent_id], references: [id])
   children Department[] @relation("DepartmentTree")
   manager  User?        @relation("DepartmentManager", fields: [manager_user_id], references: [id])
   users    User[]
+
+  @@map("departments")
 }
 
 model Role {
@@ -171,6 +174,8 @@ model Role {
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 
   userRoles UserRole[]
+
+  @@map("roles")
 }
 
 model UserRole {
@@ -181,6 +186,7 @@ model UserRole {
   role Role @relation(fields: [role_id], references: [id])
 
   @@id([user_id, role_id])
+  @@map("user_roles")
 }
 
 // 全局审批岗位映射（法务审批 / 财务总监 等，非「部门主管」——部门主管走 departments.manager_user_id）
@@ -194,6 +200,8 @@ model ApprovalPosition {
   updated_at  DateTime @updatedAt @db.Timestamptz(6)
 
   assignees ApprovalPositionAssignee[]
+
+  @@map("approval_positions")
 }
 
 model ApprovalPositionAssignee {
@@ -208,6 +216,7 @@ model ApprovalPositionAssignee {
 
   @@unique([position_id, user_id])
   @@index([position_id])
+  @@map("approval_position_assignees")
 }
 
 // ---------------------------------------------------------------------------
@@ -215,29 +224,30 @@ model ApprovalPositionAssignee {
 // ---------------------------------------------------------------------------
 
 model Contract {
-  id                    String          @id @default(uuid()) @db.Uuid
-  application_no        String          @unique // CT20260001
-  applicant_id          String          @db.Uuid
-  applicant_name_snapshot String
-  department_id         String          @db.Uuid
+  id                       String         @id @default(uuid()) @db.Uuid
+  application_no           String         @unique // CT20260001
+  applicant_id             String         @db.Uuid
+  applicant_name_snapshot  String
+  department_id            String         @db.Uuid
   department_name_snapshot String
-  reason                String
-  urgency               Urgency         @default(NORMAL)
-  total_amount          Decimal         @default(0) @db.Decimal(18, 2)
-  status                ContractStatus  @default(DRAFT)
-  approval_instance_id  String?         @unique @db.Uuid
-  version               Int             @default(0) // 乐观锁
-  submitted_at          DateTime?       @db.Timestamptz(6)
-  created_at            DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime        @updatedAt @db.Timestamptz(6)
+  reason                   String
+  urgency                  Urgency        @default(NORMAL)
+  total_amount             Decimal        @default(0) @db.Decimal(18, 2)
+  status                   ContractStatus @default(DRAFT)
+  approval_instance_id     String?        @unique @db.Uuid
+  version                  Int            @default(0) // 乐观锁
+  submitted_at             DateTime?      @db.Timestamptz(6)
+  created_at               DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime       @updatedAt @db.Timestamptz(6)
 
-  applicant          User               @relation("Applicant", fields: [applicant_id], references: [id])
-  items              ContractItem[]
-  approval_instance  ApprovalInstance?  @relation(fields: [approval_instance_id], references: [id])
+  applicant         User              @relation("Applicant", fields: [applicant_id], references: [id])
+  items             ContractItem[]
+  approval_instance ApprovalInstance? @relation(fields: [approval_instance_id], references: [id])
 
   @@index([applicant_id])
   @@index([status])
   @@index([created_at])
+  @@map("contracts")
 }
 
 model ContractItem {
@@ -257,6 +267,7 @@ model ContractItem {
 
   @@index([contract_id])
   @@index([file_id])
+  @@map("contract_items")
 }
 
 model File {
@@ -270,11 +281,12 @@ model File {
   status        FileStatus @default(UPLOADED)
   created_at    DateTime   @default(now()) @db.Timestamptz(6)
 
-  uploader User           @relation("Uploader", fields: [uploaded_by], references: [id])
+  uploader User          @relation("Uploader", fields: [uploaded_by], references: [id])
   item     ContractItem?
 
   @@index([uploaded_by])
   @@index([status])
+  @@map("files")
 }
 
 // ---------------------------------------------------------------------------
@@ -282,14 +294,14 @@ model File {
 // ---------------------------------------------------------------------------
 
 model ApprovalInstance {
-  id                    String          @id @default(uuid()) @db.Uuid
-  business_type        String          @default("CONTRACT")
-  business_id           String          @db.Uuid // 关联 contract.id
+  id                    String         @id @default(uuid()) @db.Uuid
+  business_type         String         @default("CONTRACT")
+  business_id           String         @db.Uuid // 关联 contract.id
   rule_version          String
-  total_amount_snapshot Decimal         @db.Decimal(18, 2)
-  status                ContractStatus  @default(PENDING_APPROVAL)
-  created_at            DateTime        @default(now()) @db.Timestamptz(6)
-  completed_at          DateTime?       @db.Timestamptz(6)
+  total_amount_snapshot Decimal        @db.Decimal(18, 2)
+  status                ContractStatus @default(PENDING_APPROVAL)
+  created_at            DateTime       @default(now()) @db.Timestamptz(6)
+  completed_at          DateTime?      @db.Timestamptz(6)
 
   contract Contract?
   nodes    ApprovalNode[]
@@ -298,19 +310,20 @@ model ApprovalInstance {
 
   @@index([business_id])
   @@index([status])
+  @@map("approval_instances")
 }
 
 model ApprovalNode {
-  id                      String     @id @default(uuid()) @db.Uuid
-  instance_id             String     @db.Uuid
-  sequence                Int        // 节点顺序，从 1 起
-  node_type               NodeType
-  approver_id             String     @db.Uuid
-  approver_name_snapshot  String
-  department_id_snapshot  String?
-  status                  NodeStatus @default(PENDING)
-  activated_at            DateTime?  @db.Timestamptz(6)
-  completed_at            DateTime?  @db.Timestamptz(6)
+  id                     String     @id @default(uuid()) @db.Uuid
+  instance_id            String     @db.Uuid
+  sequence               Int // 节点顺序，从 1 起
+  node_type              NodeType
+  approver_id            String     @db.Uuid
+  approver_name_snapshot String
+  department_id_snapshot String?
+  status                 NodeStatus @default(PENDING)
+  activated_at           DateTime?  @db.Timestamptz(6)
+  completed_at           DateTime?  @db.Timestamptz(6)
 
   instance ApprovalInstance @relation(fields: [instance_id], references: [id])
   tasks    ApprovalTask[]
@@ -319,6 +332,7 @@ model ApprovalNode {
   @@index([instance_id])
   @@index([approver_id])
   @@index([status])
+  @@map("approval_nodes")
 }
 
 model ApprovalTask {
@@ -332,38 +346,40 @@ model ApprovalTask {
   created_at   DateTime   @default(now()) @db.Timestamptz(6)
   completed_at DateTime?  @db.Timestamptz(6)
 
-  instance   ApprovalInstance @relation(fields: [instance_id], references: [id])
-  node       ApprovalNode     @relation(fields: [node_id], references: [id])
-  assignee   User             @relation("Assignee", fields: [assignee_id], references: [id])
-  actions            ApprovalAction[]
-  parent_signatures  ApprovalSignature[] @relation("ParentTask")
-  signature_task_of  ApprovalSignature?  @relation("SignatureTask")
+  instance          ApprovalInstance    @relation(fields: [instance_id], references: [id])
+  node              ApprovalNode        @relation(fields: [node_id], references: [id])
+  assignee          User                @relation("Assignee", fields: [assignee_id], references: [id])
+  actions           ApprovalAction[]
+  parent_signatures ApprovalSignature[] @relation("ParentTask")
+  signature_task_of ApprovalSignature?  @relation("SignatureTask")
 
   @@index([assignee_id])
   @@index([status])
   @@index([instance_id])
+  @@map("approval_tasks")
 }
 
 model ApprovalAction {
-  id            String     @id @default(uuid()) @db.Uuid
-  instance_id   String     @db.Uuid
-  node_id       String?    @db.Uuid
-  task_id       String?    @db.Uuid
-  actor_id      String     @db.Uuid
-  action_type   ActionType
-  comment       String? // 驳回/终止/转交原因
-  from_user_id  String?    @db.Uuid
-  to_user_id    String?    @db.Uuid
-  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  id           String     @id @default(uuid()) @db.Uuid
+  instance_id  String     @db.Uuid
+  node_id      String?    @db.Uuid
+  task_id      String?    @db.Uuid
+  actor_id     String     @db.Uuid
+  action_type  ActionType
+  comment      String? // 驳回/终止/转交原因
+  from_user_id String?    @db.Uuid
+  to_user_id   String?    @db.Uuid
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
 
   actor    User             @relation("Actor", fields: [actor_id], references: [id])
-  instance ApprovalInstance    @relation(fields: [instance_id], references: [id])
-  node     ApprovalNode?     @relation(fields: [node_id], references: [id])
-  task     ApprovalTask?     @relation(fields: [task_id], references: [id])
+  instance ApprovalInstance @relation(fields: [instance_id], references: [id])
+  node     ApprovalNode?    @relation(fields: [node_id], references: [id])
+  task     ApprovalTask?    @relation(fields: [task_id], references: [id])
 
   @@index([instance_id])
   @@index([actor_id])
   @@index([task_id])
+  @@map("approval_actions")
 }
 
 model ApprovalSignature {
@@ -381,6 +397,7 @@ model ApprovalSignature {
 
   @@index([parent_task_id])
   @@index([signer_id])
+  @@map("approval_signatures")
 }
 
 // ---------------------------------------------------------------------------
@@ -388,22 +405,23 @@ model ApprovalSignature {
 // ---------------------------------------------------------------------------
 
 model AuditLog {
-  id             String    @id @default(uuid()) @db.Uuid
-  actor_id       String    @db.Uuid
-  action         ActionType
-  resource_type  String
-  resource_id    String
-  request_id     String?
-  ip_address     String?
-  user_agent     String?
+  id              String     @id @default(uuid()) @db.Uuid
+  actor_id        String     @db.Uuid
+  action          ActionType
+  resource_type   String
+  resource_id     String
+  request_id      String?
+  ip_address      String?
+  user_agent      String?
   before_snapshot Json?
   after_snapshot  Json?
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  created_at      DateTime   @default(now()) @db.Timestamptz(6)
 
   @@index([actor_id])
   @@index([resource_id])
   @@index([request_id])
   @@index([created_at])
+  @@map("audit_logs")
 }
 
 model ExportJob {
@@ -426,4 +444,5 @@ model ExportJob {
   @@index([requested_by])
   @@index([status])
   @@index([created_at])
+  @@map("export_jobs")
 }
