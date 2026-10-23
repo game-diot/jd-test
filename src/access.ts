@@ -13,5 +13,7 @@ export default function access(
     canAdmin: roles.includes('admin'),
     isApprover: roles.includes('approver'),
     isAuditor: roles.includes('auditor'),
+    canLedger: roles.includes('admin') || roles.includes('auditor'),
+    canExport: roles.includes('admin') || roles.includes('auditor'),
   };
 }

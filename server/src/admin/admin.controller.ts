@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser, Roles } from '../auth/decorators.js';
 import { AdminService } from './admin.service.js';
@@ -13,6 +13,16 @@ export class AdminController {
   @Get('contracts')
   contracts() {
     return this.admin.allContracts();
+  }
+
+  @Get('audit-logs')
+  auditLogs(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.admin.listAuditLogs(Number(page) || 1, Number(pageSize) || 20);
+  }
+
+  @Get('export-jobs')
+  exportJobs() {
+    return this.admin.listExportJobs();
   }
 
   @Post('contracts/:id/terminate')

@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { RequestIdMiddleware } from './common/request-id.middleware.js';
@@ -34,6 +35,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // 安全响应头（helmet 默认策略）
+  app.use(helmet());
 
   // CORS（同域部署时由 Nginx 兜底；本地联调放开同源即可）
   app.enableCors({

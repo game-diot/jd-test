@@ -3,6 +3,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, message, Tag } from 'antd';
 import { useRef, useState } from 'react';
+import { getFileDownloadUrl } from '@/services/files';
 import { exportLedger, queryLedger } from '@/services/ledger';
 
 const STATUS_MAP: Record<string, { text: string; color: string }> = {
@@ -97,6 +98,26 @@ const Ledger: React.FC = () => {
       search: false,
     },
     {
+      title: '附件',
+      dataIndex: ['items', '0', 'file', 'id'],
+      width: 100,
+      search: false,
+      render: (_, r) => {
+        const file = r.items?.[0]?.file;
+        return file ? (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => downloadFile(file.id)}
+          >
+            下载
+          </Button>
+        ) : (
+          '-'
+        );
+      },
+    },
+    {
       title: '申请时间',
       dataIndex: 'created_at',
       valueType: 'dateTime',
@@ -143,6 +164,11 @@ const Ledger: React.FC = () => {
       },
     },
   ];
+
+  const downloadFile = async (fileId: string) => {
+    const res = await getFileDownloadUrl(fileId);
+    window.open(res.data.url, '_blank');
+  };
 
   const doExport = async () => {
     setExporting(true);

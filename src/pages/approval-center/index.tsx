@@ -8,23 +8,30 @@ import {
   Input,
   Modal,
   message,
-  Popconfirm,
+  Select,
   Space,
+  Table,
   Tabs,
   Tag,
+  Timeline,
 } from 'antd';
 import { useState } from 'react';
 import { getAdminContracts, terminateContract } from '@/services/admin';
 import {
+  addSignTask,
   approveTask,
   getApprovalDetail,
   getPendingApprovals,
   getProcessedApprovals,
   rejectTask,
+  transferTask,
   withdrawContract,
 } from '@/services/approvals';
 import type { UserProfile } from '@/services/auth';
 import { getMyContracts } from '@/services/contracts';
+import { getFileDownloadUrl } from '@/services/files';
+import type { ApproverOption } from '@/services/users';
+import { listApprovers, listSigners } from '@/services/users';
 
 const STATUS_MAP: Record<string, { text: string; color: string }> = {
   PENDING_APPROVAL: { text: '待审批', color: 'processing' },
@@ -44,6 +51,19 @@ const TASK_STATUS_MAP: Record<string, { text: string; color: string }> = {
   CANCELLED: { text: '已取消', color: 'default' },
 };
 
+const TYPE_MAP: Record<string, string> = {
+  PURCHASE: '采购合同',
+  SALES: '销售合同',
+  SERVICE: '服务合同',
+  NDA: '保密协议',
+};
+
+const SEAL_MAP: Record<string, string> = {
+  OFFICIAL_SEAL: '公章',
+  CONTRACT_SEAL: '合同章',
+  LEGAL_REP_SEAL: '法人章',
+};
+
 const ApprovalCenter: React.FC = () => {
   const { initialState } = useModel('@@initialState');
   const user = initialState?.currentUser as UserProfile | undefined;
@@ -59,6 +79,21 @@ const ApprovalCenter: React.FC = () => {
   const [rejectTaskId, setRejectTaskId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // 转交
+  const [transferVisible, setTransferVisible] = useState(false);
+  const [transferTaskId, setTransferTaskId] = useState('');
+  const [transferToUser, setTransferToUser] = useState<string>();
+  const [transferReason, setTransferReason] = useState('');
+  const [approvers, setApprovers] = useState<ApproverOption[]>([]);
+
+  // 加签
+  const [signVisible, setSignVisible] = useState(false);
+  const [signTaskId, setSignTaskId] = useState('');
+  const [signerId, setSignerId] = useState<string>();
+  const [signers, setSigners] = useState<ApproverOption[]>([]);
+
+  const reload = () => setRefreshKey((k) => k + 1);
+
   const openDetail = async (taskId: string) => {
     const res = await getApprovalDetail(taskId);
     setDetailTask(res.data);
@@ -68,7 +103,7 @@ const ApprovalCenter: React.FC = () => {
     await approveTask(taskId);
     message.success('已同意');
     setDetailTask(null);
-    setRefreshKey((k) => k + 1);
+    reload();
   };
 
   const doReject = async () => {
@@ -81,13 +116,13 @@ const ApprovalCenter: React.FC = () => {
     setRejectVisible(false);
     setRejectReason('');
     setDetailTask(null);
-    setRefreshKey((k) => k + 1);
+    reload();
   };
 
   const doWithdraw = async (contractId: string) => {
     await withdrawContract(contractId);
     message.success('已撤回');
-    setRefreshKey((k) => k + 1);
+    reload();
   };
 
   const doTerminate = (id: string) => {
@@ -108,9 +143,59 @@ const ApprovalCenter: React.FC = () => {
         }
         await terminateContract(id, reason.trim());
         message.success('已终止');
-        setRefreshKey((k) => k + 1);
+        reload();
       },
     });
+  };
+
+  const openTransfer = async (taskId: string) => {
+    const res = await listApprovers();
+    setApprovers(res.data ?? []);
+    setTransferTaskId(taskId);
+    setTransferToUser(undefined);
+    setTransferReason('');
+    setTransferVisible(true);
+  };
+
+  const doTransfer = async () => {
+    if (!transferToUser) {
+      message.error('请选择接收人');
+      return;
+    }
+    if (!transferReason.trim()) {
+      message.error('请填写转交原因');
+      return;
+    }
+    await transferTask(transferTaskId, transferToUser, transferReason.trim());
+    message.success('已转交');
+    setTransferVisible(false);
+    setDetailTask(null);
+    reload();
+  };
+
+  const openSign = async (taskId: string) => {
+    const res = await listSigners();
+    setSigners(res.data ?? []);
+    setSignTaskId(taskId);
+    setSignerId(undefined);
+    setSignVisible(true);
+  };
+
+  const doSign = async () => {
+    if (!signerId) {
+      message.error('请选择加签人');
+      return;
+    }
+    await addSignTask(signTaskId, signerId);
+    message.success('已发起加签');
+    setSignVisible(false);
+    setDetailTask(null);
+    reload();
+  };
+
+  const downloadFile = async (fileId: string) => {
+    const res = await getFileDownloadUrl(fileId);
+    window.open(res.data.url, '_blank');
   };
 
   const contractColumns: ProColumns<any>[] = [
@@ -174,29 +259,58 @@ const ApprovalCenter: React.FC = () => {
             {
               title: '操作',
               valueType: 'option',
-              render: (_, r) => [
-                <Button key="d" type="link" onClick={() => openDetail(r.id)}>
-                  查看
-                </Button>,
-                <Popconfirm
-                  key="a"
-                  title="确认同意该申请？"
-                  onConfirm={() => doApprove(r.id)}
-                >
-                  <Button type="link">同意</Button>
-                </Popconfirm>,
-                <Button
-                  key="r"
-                  type="link"
-                  danger
-                  onClick={() => {
-                    setRejectTaskId(r.id);
-                    setRejectVisible(true);
-                  }}
-                >
-                  驳回
-                </Button>,
-              ],
+              render: (_, r) =>
+                r.status === 'PENDING'
+                  ? [
+                      <Button
+                        key="d"
+                        type="link"
+                        onClick={() => openDetail(r.id)}
+                      >
+                        查看
+                      </Button>,
+                      <Button
+                        key="a"
+                        type="link"
+                        onClick={() => doApprove(r.id)}
+                      >
+                        同意
+                      </Button>,
+                      <Button
+                        key="r"
+                        type="link"
+                        danger
+                        onClick={() => {
+                          setRejectTaskId(r.id);
+                          setRejectVisible(true);
+                        }}
+                      >
+                        驳回
+                      </Button>,
+                      <Button
+                        key="t"
+                        type="link"
+                        onClick={() => openTransfer(r.id)}
+                      >
+                        转交
+                      </Button>,
+                      <Button
+                        key="s"
+                        type="link"
+                        onClick={() => openSign(r.id)}
+                      >
+                        加签
+                      </Button>,
+                    ]
+                  : [
+                      <Button
+                        key="d"
+                        type="link"
+                        onClick={() => openDetail(r.id)}
+                      >
+                        查看
+                      </Button>,
+                    ],
             },
           ]}
           request={getPendingApprovals}
@@ -218,6 +332,15 @@ const ApprovalCenter: React.FC = () => {
               title: '处理时间',
               dataIndex: 'completed_at',
               valueType: 'dateTime',
+            },
+            {
+              title: '操作',
+              valueType: 'option',
+              render: (_, r) => [
+                <Button key="d" type="link" onClick={() => openDetail(r.id)}>
+                  查看
+                </Button>,
+              ],
             },
           ]}
           request={getProcessedApprovals}
@@ -244,13 +367,9 @@ const ApprovalCenter: React.FC = () => {
                 查看
               </Button>,
               r.status === 'PENDING_APPROVAL' && (
-                <Popconfirm
-                  key="w"
-                  title="确认撤回该申请？"
-                  onConfirm={() => doWithdraw(r.id)}
-                >
-                  <Button type="link">撤回</Button>
-                </Popconfirm>
+                <Button key="w" type="link" onClick={() => doWithdraw(r.id)}>
+                  撤回
+                </Button>
               ),
             ],
           },
@@ -299,61 +418,147 @@ const ApprovalCenter: React.FC = () => {
     });
   }
 
+  const contract = detailTask?.node?.instance?.contract;
+  const itemsList = contract?.items ?? [];
+  const nodes = detailTask?.node?.instance?.nodes ?? [];
+  const actions = detailTask?.actions ?? [];
+
   return (
     <PageContainer title="审批中心">
       <Tabs items={items} />
       <Drawer
         title="申请详情"
-        width={760}
+        width={820}
         open={!!detailTask}
         onClose={() => setDetailTask(null)}
       >
         {detailTask && (
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions column={2} bordered size="small">
               <Descriptions.Item label="申请编号">
-                {detailTask.node?.instance?.contract?.application_no}
+                {contract?.application_no}
               </Descriptions.Item>
               <Descriptions.Item label="申请人">
-                {detailTask.node?.instance?.contract?.applicant_name_snapshot}
+                {contract?.applicant_name_snapshot}
               </Descriptions.Item>
               <Descriptions.Item label="申请原因" span={2}>
-                {detailTask.node?.instance?.contract?.reason}
+                {contract?.reason}
               </Descriptions.Item>
               <Descriptions.Item label="合同金额">
                 ¥{' '}
-                {Number(
-                  detailTask.node?.instance?.total_amount_snapshot,
-                ).toFixed(2)}
+                {Number(detailTask.node.instance.total_amount_snapshot).toFixed(
+                  2,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
-                {detailTask.node?.instance?.contract?.status}
+                {contract?.status}
               </Descriptions.Item>
             </Descriptions>
+
+            <div>
+              <strong>合同明细</strong>
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                style={{ marginTop: 8 }}
+                dataSource={itemsList}
+                columns={[
+                  { title: '合同名称', dataIndex: 'contract_name' },
+                  {
+                    title: '类型',
+                    dataIndex: 'contract_type',
+                    render: (v) => TYPE_MAP[v] ?? v,
+                  },
+                  {
+                    title: '金额',
+                    dataIndex: 'amount',
+                    render: (_, r: any) => `¥ ${Number(r.amount).toFixed(2)}`,
+                  },
+                  { title: '相对方', dataIndex: 'counterparty' },
+                  {
+                    title: '用印类型',
+                    dataIndex: 'seal_type',
+                    render: (v) => SEAL_MAP[v] ?? v,
+                  },
+                  {
+                    title: '附件',
+                    dataIndex: ['file', 'id'],
+                    render: (_v, r: any) =>
+                      r.file ? (
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => downloadFile(r.file.id)}
+                        >
+                          {r.file.original_name || '下载'}
+                        </Button>
+                      ) : (
+                        '-'
+                      ),
+                  },
+                ]}
+              />
+            </div>
+
             <div>
               <strong>审批链进度</strong>
-              {(detailTask.node?.instance?.nodes ?? []).map((n: any) => (
-                <div key={n.id} style={{ marginTop: 8 }}>
-                  <Tag color="blue">{n.node_type}</Tag>
-                  <span>{n.approver_name_snapshot}</span>
-                  <Tag
-                    color={TASK_STATUS_MAP[n.status]?.color}
-                    style={{ marginLeft: 8 }}
-                  >
-                    {TASK_STATUS_MAP[n.status]?.text ?? n.status}
-                  </Tag>
-                </div>
-              ))}
+              <div style={{ marginTop: 8 }}>
+                {nodes.map((n: any) => (
+                  <div key={n.id} style={{ marginBottom: 4 }}>
+                    <Tag color="blue">{n.node_type}</Tag>
+                    <span>{n.approver_name_snapshot}</span>
+                    <Tag
+                      color={TASK_STATUS_MAP[n.status]?.color}
+                      style={{ marginLeft: 8 }}
+                    >
+                      {TASK_STATUS_MAP[n.status]?.text ?? n.status}
+                    </Tag>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {actions.length > 0 && (
+              <div>
+                <strong>审批历史</strong>
+                <Timeline
+                  style={{ marginTop: 8 }}
+                  items={actions.map((a: any) => ({
+                    color:
+                      a.action_type === 'REJECT' ||
+                      a.action_type === 'SIGN_REJECT'
+                        ? 'red'
+                        : a.action_type === 'APPROVE'
+                          ? 'green'
+                          : 'blue',
+                    children: (
+                      <>
+                        <div>
+                          {a.action_type} · {a.actor_id}
+                        </div>
+                        {a.comment && (
+                          <div style={{ color: '#999' }}>{a.comment}</div>
+                        )}
+                        <div style={{ color: '#bbb', fontSize: 12 }}>
+                          {a.created_at}
+                        </div>
+                      </>
+                    ),
+                  }))}
+                />
+              </div>
+            )}
+
             {detailTask.status === 'PENDING' &&
               detailTask.assignee_id === user?.id && (
                 <Space>
-                  <Popconfirm
-                    title="确认同意？"
-                    onConfirm={() => doApprove(detailTask.id)}
+                  <Button
+                    type="primary"
+                    onClick={() => doApprove(detailTask.id)}
                   >
-                    <Button type="primary">同意</Button>
-                  </Popconfirm>
+                    同意
+                  </Button>
                   <Button
                     danger
                     onClick={() => {
@@ -363,11 +568,16 @@ const ApprovalCenter: React.FC = () => {
                   >
                     驳回
                   </Button>
+                  <Button onClick={() => openTransfer(detailTask.id)}>
+                    转交
+                  </Button>
+                  <Button onClick={() => openSign(detailTask.id)}>加签</Button>
                 </Space>
               )}
           </Space>
         )}
       </Drawer>
+
       <Modal
         title="驳回原因"
         open={rejectVisible}
@@ -379,6 +589,50 @@ const ApprovalCenter: React.FC = () => {
           onChange={(e) => setRejectReason(e.target.value)}
           placeholder="请填写驳回原因（不少于 10 个字）"
           rows={4}
+        />
+      </Modal>
+
+      <Modal
+        title="转交审批任务"
+        open={transferVisible}
+        onCancel={() => setTransferVisible(false)}
+        onOk={doTransfer}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择接收人（同部门 + 审批权限）"
+            value={transferToUser}
+            onChange={setTransferToUser}
+            options={approvers.map((a) => ({
+              value: a.id,
+              label: `${a.name}（${a.employee_no}）`,
+            }))}
+          />
+          <Input.TextArea
+            rows={3}
+            placeholder="转交原因（必填）"
+            value={transferReason}
+            onChange={(e) => setTransferReason(e.target.value)}
+          />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="加签审批人"
+        open={signVisible}
+        onCancel={() => setSignVisible(false)}
+        onOk={doSign}
+      >
+        <Select
+          style={{ width: '100%' }}
+          placeholder="选择加签人（同级或上级）"
+          value={signerId}
+          onChange={setSignerId}
+          options={signers.map((a) => ({
+            value: a.id,
+            label: `${a.name}（${a.employee_no}）`,
+          }))}
         />
       </Modal>
     </PageContainer>

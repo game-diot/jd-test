@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators.js';
 import { LedgerQueryDto } from './dto/ledger-query.dto.js';
@@ -13,5 +13,10 @@ export class LedgerController {
   @Get('contracts')
   query(@Query() q: LedgerQueryDto) {
     return this.ledger.query(q);
+  }
+
+  @Get('contracts/:id')
+  detail(@Param('id') id: string) {
+    return this.ledger.detail(id);
   }
 }

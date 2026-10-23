@@ -38,6 +38,11 @@ export class FilesController {
     return this.files.save(file, user.userId);
   }
 
+  @Get(':id')
+  metadata(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.files.getMeta(id, user.userId);
+  }
+
   @Post(':id/download-url')
   downloadUrl(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.files.getDownloadUrl(id, user.userId);

@@ -18,6 +18,27 @@ export class AdminService {
     });
   }
 
+  async listAuditLogs(page = 1, pageSize = 20) {
+    const take = Math.min(100, Math.max(1, pageSize));
+    const skip = (Math.max(1, page) - 1) * take;
+    const [total, data] = await Promise.all([
+      this.prisma.auditLog.count(),
+      this.prisma.auditLog.findMany({
+        orderBy: { created_at: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+    return { total, data };
+  }
+
+  async listExportJobs() {
+    return this.prisma.exportJob.findMany({
+      orderBy: { created_at: 'desc' },
+      include: { requester: { select: { id: true, name: true } } },
+    });
+  }
+
   /** 强制终止：管理员 + 必填原因，仅在途（待审批）可终止 */
   async terminate(id: string, userId: string, dto: TerminateDto) {
     const contract = await this.prisma.contract.findUnique({

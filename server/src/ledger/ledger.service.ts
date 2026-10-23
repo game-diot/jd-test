@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LedgerQueryDto } from './dto/ledger-query.dto.js';
@@ -45,7 +45,7 @@ export class LedgerService {
       this.prisma.contract.count({ where }),
       this.prisma.contract.findMany({
         where,
-        include: { items: true },
+        include: { items: { include: { file: true } } },
         orderBy: { [sortField]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -65,5 +65,26 @@ export class LedgerService {
     }));
 
     return { total, current: page, pageSize, data };
+  }
+
+  /** 台账详情（含明细 + 脱敏） */
+  async detail(id: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: { items: { include: { file: true } } },
+    });
+    if (!contract) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: '申请单不存在' });
+    }
+    return {
+      ...contract,
+      total_amount: contract.total_amount.toString(),
+      items: contract.items.map((it) => ({
+        ...it,
+        amount: it.amount.toString(),
+        credit_code: maskCreditCode(it.credit_code),
+        bank_account: maskBankAccount(it.bank_account),
+      })),
+    };
   }
 }

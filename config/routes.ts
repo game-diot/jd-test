@@ -39,12 +39,14 @@ export default [
     path: '/ledger',
     name: 'ledger',
     icon: 'table',
+    access: 'canLedger',
     component: './ledger',
   },
   {
     path: '/exports',
     name: 'export-tasks',
     icon: 'download',
+    access: 'canExport',
     component: './export-tasks',
   },
   {

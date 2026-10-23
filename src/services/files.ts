@@ -16,3 +16,8 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
     requestType: 'form',
   });
 }
+
+/** 附件二次鉴权：生成短时效下载 URL */
+export async function getFileDownloadUrl(fileId: string) {
+  return request(`/api/v1/files/${fileId}/download-url`, { method: 'POST' });
+}

@@ -75,6 +75,7 @@ export class ExportsService implements OnModuleInit, OnModuleDestroy {
         requested_by: userId,
         filters_snapshot: filters as never,
         status: 'QUEUED',
+        expires_at: new Date(Date.now() + 24 * 3600 * 1000),
       },
     });
     await this.prisma.auditLog.create({
@@ -97,6 +98,17 @@ export class ExportsService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async getJob(jobId: string, userId: string) {
+    const job = await this.prisma.exportJob.findUnique({ where: { id: jobId } });
+    if (!job) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: '导出任务不存在' });
+    }
+    if (job.requested_by !== userId) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: '无权查看该任务' });
+    }
+    return job;
+  }
+
   async getDownloadUrl(jobId: string, userId: string) {
     const job = await this.prisma.exportJob.findUnique({ where: { id: jobId } });
     if (!job) {
@@ -107,6 +119,13 @@ export class ExportsService implements OnModuleInit, OnModuleDestroy {
     }
     if (job.status !== 'SUCCEEDED' || !job.file_id) {
       throw new ForbiddenException({ code: 'NOT_READY', message: '导出尚未完成' });
+    }
+    if (job.expires_at && job.expires_at < new Date()) {
+      await this.prisma.exportJob.update({
+        where: { id: jobId },
+        data: { status: 'EXPIRED' },
+      });
+      throw new ForbiddenException({ code: 'EXPORT_EXPIRED', message: '导出结果已过期' });
     }
     const url = await this.files.getDownloadUrl(job.file_id, userId);
     await this.prisma.auditLog.create({
