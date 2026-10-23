@@ -111,21 +111,30 @@ const ContractApplication: React.FC = () => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const onSave = async () => {
+  const validateForm = (): boolean => {
     if (!reason.trim()) {
       message.error('请填写申请原因');
-      return;
+      return false;
     }
     for (const it of items) {
       if (!it.contractName.trim() || !it.counterparty.trim()) {
         message.error('请完整填写每份合同的名称与签约相对方');
-        return;
+        return false;
       }
       if (it.contractType !== 'NDA' && toNum(it.amount) <= 0) {
         message.error('普通合同金额必须大于 0');
-        return;
+        return false;
+      }
+      if (!it.fileId) {
+        message.error('请为每份合同上传 PDF 附件');
+        return false;
       }
     }
+    return true;
+  };
+
+  const onSave = async () => {
+    if (!validateForm()) return;
     setSaving(true);
     try {
       const res = await createContract({
@@ -141,15 +150,27 @@ const ContractApplication: React.FC = () => {
   };
 
   const onSubmit = async () => {
-    if (!draftId) {
-      message.warning('请先保存草稿');
-      return;
-    }
+    if (!validateForm()) return;
     setSubmitting(true);
     try {
-      await submitContract(draftId);
+      let id = draftId;
+      if (!id) {
+        const res = await createContract({
+          reason: reason.trim(),
+          urgency,
+          items,
+        });
+        id = res.data?.id ?? null;
+      }
+      if (!id) {
+        message.error('保存失败，请重试');
+        return;
+      }
+      await submitContract(id);
       message.success('已提交，进入审批流程');
       setDraftId(null);
+      setReason('');
+      setItems([emptyItem()]);
     } catch {
       // 错误由 request 层统一提示
     } finally {
@@ -394,12 +415,7 @@ const ContractApplication: React.FC = () => {
           <Button loading={saving} onClick={onSave}>
             保存草稿
           </Button>
-          <Button
-            type="primary"
-            loading={submitting}
-            disabled={!draftId}
-            onClick={onSubmit}
-          >
+          <Button type="primary" loading={submitting} onClick={onSubmit}>
             提交申请
           </Button>
         </Space>

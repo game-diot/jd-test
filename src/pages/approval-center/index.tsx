@@ -28,7 +28,7 @@ import {
   withdrawContract,
 } from '@/services/approvals';
 import type { UserProfile } from '@/services/auth';
-import { getMyContracts } from '@/services/contracts';
+import { getContract, getMyContracts } from '@/services/contracts';
 import { getFileDownloadUrl } from '@/services/files';
 import type { ApproverOption } from '@/services/users';
 import { listApprovers, listSigners } from '@/services/users';
@@ -97,6 +97,15 @@ const ApprovalCenter: React.FC = () => {
   const openDetail = async (taskId: string) => {
     const res = await getApprovalDetail(taskId);
     setDetailTask(res.data);
+  };
+
+  const [contractDetail, setContractDetail] = useState<Record<
+    string,
+    any
+  > | null>(null);
+  const openContractDetail = async (contractId: string) => {
+    const res = await getContract(contractId);
+    setContractDetail(res.data);
   };
 
   const doApprove = async (taskId: string) => {
@@ -363,7 +372,11 @@ const ApprovalCenter: React.FC = () => {
             title: '操作',
             valueType: 'option',
             render: (_, r) => [
-              <Button key="d" type="link" onClick={() => openDetail(r.id)}>
+              <Button
+                key="d"
+                type="link"
+                onClick={() => openContractDetail(r.id)}
+              >
                 查看
               </Button>,
               r.status === 'PENDING_APPROVAL' && (
@@ -394,7 +407,11 @@ const ApprovalCenter: React.FC = () => {
               title: '操作',
               valueType: 'option',
               render: (_, r) => [
-                <Button key="d" type="link" onClick={() => openDetail(r.id)}>
+                <Button
+                  key="d"
+                  type="link"
+                  onClick={() => openContractDetail(r.id)}
+                >
                   查看
                 </Button>,
                 r.status === 'PENDING_APPROVAL' && (
@@ -574,6 +591,105 @@ const ApprovalCenter: React.FC = () => {
                   <Button onClick={() => openSign(detailTask.id)}>加签</Button>
                 </Space>
               )}
+          </Space>
+        )}
+      </Drawer>
+
+      <Drawer
+        title="合同详情"
+        width={820}
+        open={!!contractDetail}
+        onClose={() => setContractDetail(null)}
+      >
+        {contractDetail && (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Descriptions column={2} bordered size="small">
+              <Descriptions.Item label="申请编号">
+                {contractDetail.application_no}
+              </Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <Tag color={STATUS_MAP[contractDetail.status]?.color}>
+                  {STATUS_MAP[contractDetail.status]?.text ??
+                    contractDetail.status}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="申请人">
+                {contractDetail.applicant_name_snapshot}
+              </Descriptions.Item>
+              <Descriptions.Item label="申请原因" span={2}>
+                {contractDetail.reason}
+              </Descriptions.Item>
+              <Descriptions.Item label="金额">
+                ¥ {Number(contractDetail.total_amount).toFixed(2)}
+              </Descriptions.Item>
+              <Descriptions.Item label="提交时间">
+                {contractDetail.submitted_at || '-'}
+              </Descriptions.Item>
+            </Descriptions>
+            <div>
+              <strong>合同明细</strong>
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                style={{ marginTop: 8 }}
+                dataSource={contractDetail.items ?? []}
+                columns={[
+                  { title: '合同名称', dataIndex: 'contract_name' },
+                  {
+                    title: '类型',
+                    dataIndex: 'contract_type',
+                    render: (v) => TYPE_MAP[v] ?? v,
+                  },
+                  {
+                    title: '金额',
+                    dataIndex: 'amount',
+                    render: (v) => `¥ ${Number(v).toFixed(2)}`,
+                  },
+                  { title: '相对方', dataIndex: 'counterparty' },
+                  {
+                    title: '用印类型',
+                    dataIndex: 'seal_type',
+                    render: (v) => SEAL_MAP[v] ?? v,
+                  },
+                  {
+                    title: '附件',
+                    dataIndex: ['file', 'id'],
+                    render: (_v, r: any) =>
+                      r.file ? (
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => downloadFile(r.file.id)}
+                        >
+                          {r.file.original_name || '下载'}
+                        </Button>
+                      ) : (
+                        '-'
+                      ),
+                  },
+                ]}
+              />
+            </div>
+            {contractDetail.approval_instance?.nodes?.length > 0 && (
+              <div>
+                <strong>审批链进度</strong>
+                <div style={{ marginTop: 8 }}>
+                  {contractDetail.approval_instance.nodes.map((n: any) => (
+                    <div key={n.id} style={{ marginBottom: 4 }}>
+                      <Tag color="blue">{n.node_type}</Tag>
+                      <span>{n.approver_name_snapshot}</span>
+                      <Tag
+                        color={TASK_STATUS_MAP[n.status]?.color}
+                        style={{ marginLeft: 8 }}
+                      >
+                        {TASK_STATUS_MAP[n.status]?.text ?? n.status}
+                      </Tag>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Space>
         )}
       </Drawer>

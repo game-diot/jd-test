@@ -64,7 +64,10 @@ export class ContractsService {
   async findOne(id: string, userId: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id },
-      include: { items: { include: { file: true } } },
+      include: {
+        items: { include: { file: true } },
+        approval_instance: { include: { nodes: { orderBy: { sequence: 'asc' } } } },
+      },
     });
     if (!contract) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: '申请单不存在' });
