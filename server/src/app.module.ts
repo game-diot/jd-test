@@ -4,14 +4,18 @@ import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { RolesGuard } from './auth/roles.guard.js';
 import { RequestIdMiddleware } from './common/request-id.middleware.js';
+import { FilesModule } from './files/files.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ContractsModule } from './contracts/contracts.module.js';
 
 @Module({
   imports: [
     PrismaModule,
     AuthModule,
     HealthModule,
+    FilesModule,
+    ContractsModule,
   ],
   providers: [
     RequestIdMiddleware,
