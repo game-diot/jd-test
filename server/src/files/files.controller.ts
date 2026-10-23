@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -53,7 +54,7 @@ export class FilesController {
   async download(
     @Param('id') id: string,
     @Query('token') token: string,
-    @Res() res: Response,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const { stream, name, mime } = await this.files.resolveDownload(id, token);
     res.setHeader('Content-Type', mime);
@@ -61,6 +62,6 @@ export class FilesController {
       'Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
     );
-    stream.pipe(res);
+    return new StreamableFile(stream);
   }
 }
