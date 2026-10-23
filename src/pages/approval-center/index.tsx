@@ -322,7 +322,14 @@ const ApprovalCenter: React.FC = () => {
                     ],
             },
           ]}
-          request={getPendingApprovals}
+          request={async () => {
+            const res = await getPendingApprovals();
+            return {
+              data: res.data ?? [],
+              total: (res.data ?? []).length,
+              success: true,
+            };
+          }}
           search={false}
           pagination={{ pageSize: 10 }}
         />
@@ -352,7 +359,14 @@ const ApprovalCenter: React.FC = () => {
               ],
             },
           ]}
-          request={getProcessedApprovals}
+          request={async () => {
+            const res = await getProcessedApprovals();
+            return {
+              data: res.data ?? [],
+              total: (res.data ?? []).length,
+              success: true,
+            };
+          }}
           search={false}
           pagination={{ pageSize: 10 }}
         />
@@ -387,7 +401,14 @@ const ApprovalCenter: React.FC = () => {
             ],
           },
         ]}
-        request={getMyContracts}
+        request={async () => {
+          const res = await getMyContracts();
+          return {
+            data: res.data ?? [],
+            total: (res.data ?? []).length,
+            success: true,
+          };
+        }}
         search={false}
         pagination={{ pageSize: 10 }}
       />
@@ -427,7 +448,14 @@ const ApprovalCenter: React.FC = () => {
               ],
             },
           ]}
-          request={getAdminContracts}
+          request={async () => {
+            const res = await getAdminContracts();
+            return {
+              data: res.data ?? [],
+              total: (res.data ?? []).length,
+              success: true,
+            };
+          }}
           search={false}
           pagination={{ pageSize: 10 }}
         />

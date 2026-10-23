@@ -10,11 +10,12 @@ export interface UploadedFile {
 export async function uploadFile(file: File): Promise<UploadedFile> {
   const form = new FormData();
   form.append('file', file);
-  return request('/api/v1/files', {
+  const res = await request('/api/v1/files', {
     method: 'POST',
     data: form,
     requestType: 'form',
   });
+  return res.data;
 }
 
 /** 附件二次鉴权：生成短时效下载 URL */
