@@ -3,7 +3,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, message, Tag } from 'antd';
 import { useRef, useState } from 'react';
-import { queryLedger } from '@/services/ledger';
+import { exportLedger, queryLedger } from '@/services/ledger';
 
 const STATUS_MAP: Record<string, { text: string; color: string }> = {
   PENDING_APPROVAL: { text: '待审批', color: 'processing' },
@@ -29,6 +29,7 @@ const URL_KEYS = [
 const Ledger: React.FC = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
+  const [filters, setFilters] = useState<Record<string, any>>({});
 
   const readParams = new URLSearchParams(history.location?.search ?? '');
   const initialValues = URL_KEYS.reduce<Record<string, any>>((acc, k) => {
@@ -146,7 +147,9 @@ const Ledger: React.FC = () => {
   const doExport = async () => {
     setExporting(true);
     try {
-      message.info('导出任务已提交，阶段 9 接入流式导出');
+      await exportLedger(filters);
+      message.success('导出任务已提交');
+      history.push('/export-tasks');
     } finally {
       setExporting(false);
     }
@@ -187,6 +190,7 @@ const Ledger: React.FC = () => {
           history.replace(
             next.toString() ? `/ledger?${next.toString()}` : '/ledger',
           );
+          setFilters(q);
 
           const res = await queryLedger({ ...q, page: current, pageSize });
           return {

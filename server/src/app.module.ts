@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { LedgerModule } from './ledger/ledger.module.js';
+import { ExportsModule } from './exports/exports.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { LedgerModule } from './ledger/ledger.module.js';
     ContractsModule,
     AdminModule,
     LedgerModule,
+    ExportsModule,
   ],
   providers: [
     RequestIdMiddleware,
